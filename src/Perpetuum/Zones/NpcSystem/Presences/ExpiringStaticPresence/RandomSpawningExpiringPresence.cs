@@ -7,6 +7,8 @@ using Perpetuum.ExportedTypes;
 using Perpetuum.Units.DockingBases;
 using Perpetuum.Units;
 using Perpetuum.Zones.Teleporting;
+using Perpetuum.Timers;
+using Perpetuum.Zones.NpcSystem.Presences.ExpiringStaticPresence;
 
 namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
 {
@@ -15,7 +17,7 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
     /// </summary>
     public class RandomSpawningExpiringPresence : ExpiringPresence, IRoamingPresence
     {
-        public StackFSM StackFSM { get; }
+        public StackFSM StackFSM { get; protected set; }
         public Position SpawnOrigin { get; set; }
         public IRoamingPathFinder PathFinder { get; set; }
         public override Area Area => Configuration.Area;
@@ -51,6 +53,29 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
         }
     }
 
+    public class GrowingPresence : RandomSpawningExpiringPresence
+    {
+        public int GrowthLevel { get; protected set; }
+        public TimeSpan GrowTime { get; private set; }
+        public IEscalatingPresenceFlockSelector Selector { get; private set; }
+        public GrowingPresence(IZone zone, IPresenceConfiguration configuration, IEscalatingPresenceFlockSelector selector) : base(zone, configuration)
+        {
+            Selector = selector;
+            if (Configuration.GrowthSeconds != null)
+                GrowTime = TimeSpan.FromSeconds((int)Configuration.GrowthSeconds);
+
+            StackFSM = new StackFSM();
+            StackFSM.Push(new StaticSpawnState(this));
+        }
+
+        protected override void OnUpdate(TimeSpan time)
+        {
+            base.OnUpdate(time);
+            StackFSM.Update(time);
+        }
+
+    }
+
     public class StaticSpawnState : SpawnState
     {
         private readonly int BASE_RADIUS = 300;
@@ -76,6 +101,75 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
                 return true;
 
             return zone.Players.WithinRange2D(position, PLAYER_RADIUS).Any();
+        }
+    }
+
+    public class GrowSpawnState : StaticSpawnState
+    {
+        private readonly GrowingPresence _growingPresence;
+        public GrowSpawnState(GrowingPresence presence, int playerMinDist = 200) : base(presence, playerMinDist) {
+            _growingPresence = presence;
+        }
+
+        protected override void OnSpawned()
+        {
+            _presence.OnSpawned();
+            _presence.StackFSM.Push(new GrowthState(_growingPresence));
+        }
+    }
+
+    public class GrowthState : NullRoamingState
+    {
+        private readonly GrowingPresence _growingPresence;
+        private readonly TimeTracker _timer;
+        private int _currentLevel = 0;
+        public GrowthState(GrowingPresence presence) : base(presence) {
+            _growingPresence = presence;
+            _timer = new TimeTracker(_growingPresence.GrowTime);
+        }
+
+        public override void Update(TimeSpan time)
+        {
+            if (IsRunningTask)
+                return;
+
+            var members = GetAllMembers();
+            if (IsDeadAndExiting(members))
+                return;
+
+            if (!NextWaveReady(time))
+                return;
+
+            RunTask(() => SpawnNextWave(), t => { });
+        }
+
+        private bool NextWaveReady(TimeSpan time)
+        {
+            if(_currentLevel >= _growingPresence.GrowthLevel)
+                return false;
+
+            return CheckTimer(time);
+        }
+
+        private bool CheckTimer(TimeSpan time)
+        {
+            _timer.Update(time);
+            if (!_timer.Expired)
+                return false;
+
+            _timer.Reset();
+            return true;
+        }
+
+        private void SpawnNextWave()
+        {
+            var flockConfigs = _growingPresence.Selector.GetFlocksForPresenceLevel(_growingPresence, _currentLevel);
+            foreach(var config in flockConfigs)
+            {
+                var flock = _growingPresence.CreateAndAddFlock(config);
+                flock.SpawnAllMembers();
+            }
+            
         }
     }
 }

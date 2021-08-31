@@ -184,6 +184,7 @@ using UnpackItems = Perpetuum.RequestHandlers.UnpackItems;
 using UnstackAmount = Perpetuum.RequestHandlers.UnstackAmount;
 using Perpetuum.Services.Strongholds;
 using Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence;
+using Perpetuum.Zones.NpcSystem.Presences.ExpiringStaticPresence;
 
 namespace Perpetuum.Bootstrapper
 {
@@ -1458,6 +1459,13 @@ namespace Perpetuum.Bootstrapper
             _builder.RegisterType<RandomFlockSelector>().As<IRandomFlockSelector>();
 
             _builder.RegisterType<RandomFlockReader>()
+                .As<IRandomFlockReader>()
+                .SingleInstance()
+                .OnActivated(e => e.Instance.Init());
+
+            _builder.RegisterType<EscalatingPresenceFlockSelector>().As<IEscalatingPresenceFlockSelector>();
+
+            _builder.RegisterType<EscalatingFlocksReader>()
                 .As<IRandomFlockReader>()
                 .SingleInstance()
                 .OnActivated(e => e.Instance.Init());

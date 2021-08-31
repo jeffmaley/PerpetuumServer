@@ -716,6 +716,7 @@
     <Compile Include="Zones\NpcSystem\Flocks\RoamingFlock.cs" />
     <Compile Include="Zones\NpcSystem\NpcBossInfo.cs" />
     <Compile Include="Zones\NpcSystem\NpcEp.cs" />
+    <Compile Include="Zones\NpcSystem\Presences\ExpiringStaticPresence\FlockEscalationSelector.cs" />
     <Compile Include="Zones\NpcSystem\Presences\ExpiringStaticPresence\StaticExpiringFlock.cs" />
     <Compile Include="Zones\NpcSystem\Presences\ExpiringStaticPresence\RandomSpawningExpiringPresence.cs" />
     <Compile Include="Zones\NpcSystem\Reinforcements\INpcReinforcementWave.cs" />
