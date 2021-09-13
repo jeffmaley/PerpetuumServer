@@ -1,6 +1,7 @@
 ﻿using Perpetuum.Data;
 using Perpetuum.Zones.NpcSystem.Flocks;
 using Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -13,22 +14,20 @@ namespace Perpetuum.Zones.NpcSystem.Presences.ExpiringStaticPresence
     }
     public class EscalatingPresenceFlockSelector : IEscalatingPresenceFlockSelector
     {
-        private readonly EscalatingFlocksReader _reader;
-        public EscalatingPresenceFlockSelector(EscalatingFlocksReader reader)
+        private readonly IEscalatingFlocksReader _reader;
+        private readonly Random _random;
+        public EscalatingPresenceFlockSelector(IEscalatingFlocksReader reader)
         {
             _reader = reader;
+            _random = new Random();
         }
         public IFlockConfiguration[] GetFlocksForPresenceLevel(GrowingPresence presence, int level)
         {
-            if (level < 0 || level > presence.GrowthLevel)
-            {
-                return new IFlockConfiguration[] { };
-            }
-            var infos = _reader.GetByPresence(presence);
+            var infos = _reader.GetByPresence(presence).Where(info=>info.Level==level);
             var flocks = new List<IFlockConfiguration>();
-            foreach(var info in infos)
+            foreach (var info in infos)
             {
-                if(info.Chance >= FastRandom.NextDouble())
+                if (info.Chance >= _random.NextDouble())
                 {
                     flocks.Add(presence.FlockConfigurationRepository.Get(info.FlockId));
                 }
@@ -44,14 +43,18 @@ namespace Perpetuum.Zones.NpcSystem.Presences.ExpiringStaticPresence
         public double Chance { get; set; }
     }
 
+    public interface IEscalatingFlocksReader
+    {
+        EscalationInfo[] GetByPresence(Presence presence);
+    }
 
-    public class EscalatingFlocksReader
+    public class EscalatingFlocksReader : IEscalatingFlocksReader
     {
         private ILookup<int, EscalationInfo> _flockInfos;
 
         public void Init()
         {
-            _flockInfos = Db.Query().CommandText("select * from npcescalations")
+            _flockInfos = Db.Query().CommandText("select * from npcescalactions")
                 .Execute()
                 .Select(r =>
                 {

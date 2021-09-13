@@ -1466,7 +1466,7 @@ namespace Perpetuum.Bootstrapper
             _builder.RegisterType<EscalatingPresenceFlockSelector>().As<IEscalatingPresenceFlockSelector>();
 
             _builder.RegisterType<EscalatingFlocksReader>()
-                .As<IRandomFlockReader>()
+                .As<IEscalatingFlocksReader>()
                 .SingleInstance()
                 .OnActivated(e => e.Instance.Init());
 
@@ -1515,6 +1515,7 @@ namespace Perpetuum.Bootstrapper
             RegisterFlock<RoamingFlock>(PresenceType.FreeRoaming);
             RegisterFlock<NormalFlock>(PresenceType.Interzone);
             RegisterFlock<RoamingFlock>(PresenceType.InterzoneRoaming);
+            RegisterFlock<StaticExpiringFlock>(PresenceType.EscalatingRandomPresence);
 
             RegisterPresence<Presence>(PresenceType.Normal);
             RegisterPresence<DirectPresence>(PresenceType.Direct).OnActivated(e =>
@@ -1530,6 +1531,7 @@ namespace Perpetuum.Bootstrapper
             RegisterPresence<RoamingPresence>(PresenceType.FreeRoaming);
             RegisterPresence<InterzonePresence>(PresenceType.Interzone);
             RegisterPresence<InterzoneRoamingPresence>(PresenceType.InterzoneRoaming);
+            RegisterPresence<GrowingPresence>(PresenceType.EscalatingRandomPresence);
 
             _builder.Register<PresenceFactory>(x =>
             {

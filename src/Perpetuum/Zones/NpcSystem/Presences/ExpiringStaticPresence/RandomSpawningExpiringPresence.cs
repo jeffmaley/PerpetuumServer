@@ -28,6 +28,11 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
             if (Configuration.DynamicLifeTime != null)
                 LifeTime = TimeSpan.FromSeconds((int)Configuration.DynamicLifeTime);
 
+            InitStateMachine();
+        }
+
+        protected virtual void InitStateMachine()
+        {
             StackFSM = new StackFSM();
             StackFSM.Push(new StaticSpawnState(this));
         }
@@ -35,16 +40,19 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
         protected override void OnUpdate(TimeSpan time)
         {
             base.OnUpdate(time);
-            StackFSM.Update(time);
+            StackFSM?.Update(time);
         }
 
         protected override void OnPresenceExpired()
         {
-            ResetDynamicDespawnTimer();
+            StackFSM?.Clear();
             foreach (var flock in Flocks)
             {
                 flock.RemoveAllMembersFromZone(true);
             }
+            ResetDynamicDespawnTimer();
+            InitStateMachine();
+            base.OnPresenceExpired();
         }
 
         public void OnSpawned()
@@ -55,7 +63,6 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
 
     public class GrowingPresence : RandomSpawningExpiringPresence
     {
-        public int GrowthLevel { get; protected set; }
         public TimeSpan GrowTime { get; private set; }
         public IEscalatingPresenceFlockSelector Selector { get; private set; }
         public GrowingPresence(IZone zone, IPresenceConfiguration configuration, IEscalatingPresenceFlockSelector selector) : base(zone, configuration)
@@ -63,17 +70,29 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
             Selector = selector;
             if (Configuration.GrowthSeconds != null)
                 GrowTime = TimeSpan.FromSeconds((int)Configuration.GrowthSeconds);
-
-            StackFSM = new StackFSM();
-            StackFSM.Push(new StaticSpawnState(this));
         }
 
-        protected override void OnUpdate(TimeSpan time)
+        protected override void InitStateMachine()
         {
-            base.OnUpdate(time);
-            StackFSM.Update(time);
+            StackFSM = new StackFSM();
+            StackFSM.Push(new GrowSpawnState(this));
         }
 
+        public override void LoadFlocks()
+        {
+            var flockConfigs = Selector.GetFlocksForPresenceLevel(this, 0);
+            foreach (var config in flockConfigs)
+            {
+                CreateAndAddFlock(config);
+            }
+        }
+
+        protected override void OnPresenceExpired()
+        {
+            base.OnPresenceExpired();
+            ClearFlocks();
+            LoadFlocks();
+        }
     }
 
     public class StaticSpawnState : SpawnState
@@ -107,7 +126,8 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
     public class GrowSpawnState : StaticSpawnState
     {
         private readonly GrowingPresence _growingPresence;
-        public GrowSpawnState(GrowingPresence presence, int playerMinDist = 200) : base(presence, playerMinDist) {
+        public GrowSpawnState(GrowingPresence presence, int playerMinDist = 200) : base(presence, playerMinDist)
+        {
             _growingPresence = presence;
         }
 
@@ -123,7 +143,8 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
         private readonly GrowingPresence _growingPresence;
         private readonly TimeTracker _timer;
         private int _currentLevel = 0;
-        public GrowthState(GrowingPresence presence) : base(presence) {
+        public GrowthState(GrowingPresence presence) : base(presence)
+        {
             _growingPresence = presence;
             _timer = new TimeTracker(_growingPresence.GrowTime);
         }
@@ -145,10 +166,11 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
 
         private bool NextWaveReady(TimeSpan time)
         {
-            if(_currentLevel >= _growingPresence.GrowthLevel)
+            if(!CheckTimer(time))
                 return false;
 
-            return CheckTimer(time);
+            _currentLevel++;
+            return true;
         }
 
         private bool CheckTimer(TimeSpan time)
@@ -164,12 +186,11 @@ namespace Perpetuum.Zones.NpcSystem.Presences.RandomExpiringPresence
         private void SpawnNextWave()
         {
             var flockConfigs = _growingPresence.Selector.GetFlocksForPresenceLevel(_growingPresence, _currentLevel);
-            foreach(var config in flockConfigs)
+            foreach (var config in flockConfigs)
             {
                 var flock = _growingPresence.CreateAndAddFlock(config);
                 flock.SpawnAllMembers();
             }
-            
         }
     }
 }
