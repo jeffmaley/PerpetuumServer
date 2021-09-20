@@ -244,13 +244,18 @@ namespace Perpetuum.Zones.Eggs
                                          .WithDuration(duration));
             }
 
+            public virtual RangeCheck(Player SummonerPlayer, double Range = 10)
+            {
+                if (!_egg.IsInRangeOf3D(SummonerPlayer, Range))
+                    return ErrorCodes.ItemOutOfRange;                    
+            }
+
             public ErrorCodes Validate()
             {
                 if (SummonerPlayer.States.Dead || !SummonerPlayer.InZone)
                     return ErrorCodes.PlayerNotFound;
 
-                if (!_egg.IsInRangeOf3D(SummonerPlayer, 10))
-                    return ErrorCodes.ItemOutOfRange;
+                RangeCheck(SummonerPlayer, Range)
 
                 if (!_summonerPosition.Equals(SummonerPlayer.CurrentPosition))
                     return ErrorCodes.WTFErrorMedicalAttentionSuggested;
